@@ -1,10 +1,12 @@
-from cog import BasePredictor, Input, Path as CogPath
+#!/usr/bin/env python3
 import subprocess
 import time
 import logging
 import uuid
 from pathlib import Path
-from comfyrun import (
+from typing import Union
+from cog import BasePredictor, Input, Path as CogPath
+from comfyrunbatch import (
     prepare_output_dir,
     upload_image,
     load_workflow,
@@ -19,7 +21,7 @@ from comfyrun import (
 
 class Predictor(BasePredictor):
     def setup(self):
-        # Launch ComfyUI in server mode
+        # Launch ComfyUI server
         self.proc = subprocess.Popen([
             "python", "ComfyUI/main.py",
             "--listen", "0.0.0.0", "--port", "8188",
@@ -38,8 +40,11 @@ class Predictor(BasePredictor):
 
     def predict(
         self,
-        workflow: CogPath = Input(description="Path to workflow JSON"),
-        image: CogPath = Input(description="Path to input image file"),
+        image: CogPath = Input(description="Path to the input image file"),
+        workflow: Union[CogPath, None] = Input(
+            default=None,
+            description="Path to the workflow JSON (optional)"
+        ),
     ) -> CogPath:
         """
         Executes the image-to-image workflow and returns the generated image path.
@@ -47,26 +52,37 @@ class Predictor(BasePredictor):
         logging.basicConfig(level=logging.INFO)
         host = "http://127.0.0.1:8188"
 
-        # Prepare directories and upload
+        # Validate input image
         in_path = Path(image)
+        if not in_path.is_file():
+            raise FileNotFoundError(f"Input file not found: {in_path}")
+
+        # Determine workflow file, default if not provided
+        workflow_path = Path(workflow) if workflow else Path("workflow_api/default-workflow-api.json")
+        if not workflow_path.is_file():
+            raise FileNotFoundError(f"Workflow file not found: {workflow_path}")
+
+        # Prepare output directory
         out_dir = Path("output")
         prepare_output_dir(out_dir)
+
+        # Upload input image with a unique name
         unique_name = f"{uuid.uuid4().hex}_{in_path.name}"
         upload_image(in_path, host, unique_name)
 
         # Load and inject workflow
-        wf = load_workflow(Path(workflow))
+        wf = load_workflow(workflow_path)
         inject_input_image(wf, unique_name)
         inject_parameters(wf)
 
         # Determine output node
         node = find_output_node(wf)
-        logging.info(f"Using output node {node}")
+        logging.info(f"Using output node: {node}")
 
-        # Queue and process
+        # Queue workflow and wait for result
         pid = queue_workflow(wf, host, node)
         images = await_completion(pid, host, interval=1.0, timeout=300.0)
 
-        # Download and return first result
-        result = download_output(images[0], host, out_dir)
-        return CogPath(str(result))
+        # Download and return the first generated image
+        result_path = download_output(images[0], host, out_dir)
+        return CogPath(str(result_path))
