@@ -1,0 +1,379 @@
+{
+  "1": {
+    "inputs": {
+      "model_name": "sam_vit_b_01ec64.pth",
+      "device_mode": "Prefer GPU"
+    },
+    "class_type": "SAMLoader",
+    "_meta": {
+      "title": "SAMLoader (Impact)"
+    }
+  },
+  "3": {
+    "inputs": {
+      "model_name": "GroundingDINO_SwinT_OGC (694MB)"
+    },
+    "class_type": "GroundingDinoModelLoader (segment anything)",
+    "_meta": {
+      "title": "GroundingDinoModelLoader (segment anything)"
+    }
+  },
+  "4": {
+    "inputs": {
+      "prompt": "face, eyes, neck",
+      "threshold": 0.27,
+      "sam_model": [
+        "1",
+        0
+      ],
+      "grounding_dino_model": [
+        "3",
+        0
+      ],
+      "image": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "GroundingDinoSAMSegment (segment anything)",
+    "_meta": {
+      "title": "GroundingDinoSAMSegment (segment anything)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "prompt": "hair, chest",
+      "threshold": 0.24,
+      "sam_model": [
+        "1",
+        0
+      ],
+      "grounding_dino_model": [
+        "3",
+        0
+      ],
+      "image": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "GroundingDinoSAMSegment (segment anything)",
+    "_meta": {
+      "title": "GroundingDinoSAMSegment (segment anything)"
+    }
+  },
+  "10": {
+    "inputs": {
+      "prompt": "",
+      "threshold": 0.3,
+      "sam_model": [
+        "1",
+        0
+      ],
+      "grounding_dino_model": [
+        "3",
+        0
+      ],
+      "image": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "GroundingDinoSAMSegment (segment anything)",
+    "_meta": {
+      "title": "GroundingDinoSAMSegment (segment anything)"
+    }
+  },
+  "13": {
+    "inputs": {
+      "image": "k1.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "14": {
+    "inputs": {
+      "mask": [
+        "10",
+        1
+      ]
+    },
+    "class_type": "InvertMask",
+    "_meta": {
+      "title": "InvertMask"
+    }
+  },
+  "15": {
+    "inputs": {
+      "masks_a": [
+        "37",
+        0
+      ],
+      "masks_b": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "Masks Add",
+    "_meta": {
+      "title": "Masks Add"
+    }
+  },
+  "16": {
+    "inputs": {
+      "masks_a": [
+        "14",
+        0
+      ],
+      "masks_b": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "Masks Subtract",
+    "_meta": {
+      "title": "Masks Subtract"
+    }
+  },
+  "19": {
+    "inputs": {
+      "prompt": "chin",
+      "threshold": 0.29,
+      "sam_model": [
+        "1",
+        0
+      ],
+      "grounding_dino_model": [
+        "3",
+        0
+      ],
+      "image": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "GroundingDinoSAMSegment (segment anything)",
+    "_meta": {
+      "title": "GroundingDinoSAMSegment (segment anything)"
+    }
+  },
+  "20": {
+    "inputs": {
+      "masks_a": [
+        "15",
+        0
+      ],
+      "masks_b": [
+        "21",
+        0
+      ]
+    },
+    "class_type": "Masks Subtract",
+    "_meta": {
+      "title": "Masks Subtract"
+    }
+  },
+  "21": {
+    "inputs": {
+      "expand": 10,
+      "tapered_corners": true,
+      "mask": [
+        "19",
+        1
+      ]
+    },
+    "class_type": "GrowMask",
+    "_meta": {
+      "title": "GrowMask"
+    }
+  },
+  "23": {
+    "inputs": {
+      "text": "text, watermark, deformed",
+      "clip": [
+        "24",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "24": {
+    "inputs": {
+      "ckpt_name": "beru_custom_2.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "25": {
+    "inputs": {
+      "positive": [
+        "31",
+        0
+      ],
+      "negative": [
+        "23",
+        0
+      ],
+      "vae": [
+        "24",
+        2
+      ],
+      "pixels": [
+        "13",
+        0
+      ],
+      "mask": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "INPAINT_VAEEncodeInpaintConditioning",
+    "_meta": {
+      "title": "VAE Encode & Inpaint Conditioning"
+    }
+  },
+  "26": {
+    "inputs": {
+      "head": "fooocus_inpaint_head.pth",
+      "patch": "inpaint_v26.fooocus.patch"
+    },
+    "class_type": "INPAINT_LoadFooocusInpaint",
+    "_meta": {
+      "title": "Load Fooocus Inpaint"
+    }
+  },
+  "27": {
+    "inputs": {
+      "model": [
+        "24",
+        0
+      ],
+      "patch": [
+        "26",
+        0
+      ],
+      "latent": [
+        "25",
+        2
+      ]
+    },
+    "class_type": "INPAINT_ApplyFooocusInpaint",
+    "_meta": {
+      "title": "Apply Fooocus Inpaint"
+    }
+  },
+  "28": {
+    "inputs": {
+      "samples": [
+        "33",
+        0
+      ],
+      "vae": [
+        "24",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "31": {
+    "inputs": {
+      "text": "rounded penis head, full penis, penis head, foreskin,",
+      "clip": [
+        "24",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "33": {
+    "inputs": {
+      "seed": 196537647219308,
+      "steps": 12,
+      "cfg": 5,
+      "sampler_name": "dpmpp_sde",
+      "scheduler": "karras",
+      "denoise": 0.45,
+      "model": [
+        "38",
+        0
+      ],
+      "positive": [
+        "25",
+        0
+      ],
+      "negative": [
+        "25",
+        1
+      ],
+      "latent_image": [
+        "25",
+        3
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "37": {
+    "inputs": {
+      "expand": 10,
+      "tapered_corners": true,
+      "mask": [
+        "7",
+        1
+      ]
+    },
+    "class_type": "GrowMask",
+    "_meta": {
+      "title": "GrowMask"
+    }
+  },
+  "38": {
+    "inputs": {
+      "scale": 3.5,
+      "adaptive_scale": 0,
+      "unet_block": "output",
+      "unet_block_id": 0,
+      "sigma_start": -1,
+      "sigma_end": -1,
+      "rescale": 0,
+      "rescale_mode": "full",
+      "unet_block_list": "",
+      "model": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "PerturbedAttention",
+    "_meta": {
+      "title": "magic"
+    }
+  },
+  "40": {
+    "inputs": {
+      "filename_prefix": "output",
+      "images": [
+        "28",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  }
+}

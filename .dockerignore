@@ -1,0 +1,9 @@
+venv/
+**/venv/
+ 
+# ignore local ComfyUI folder if you want to re‑clone it
+
+ 
+# ignore other artifacts
+__pycache__/
+*.py[cod]
