@@ -8,3 +8,5 @@ dockerfile
 __pycache__/
 test_inputs/
 ComfyUI
+.DS_Store
+del.png

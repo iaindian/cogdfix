@@ -43,7 +43,6 @@ build:
       - comfyui_workflow_templates
       - contourpy
       - cryptography
-      - cstr
       - cycler
       - ddt
       - dill

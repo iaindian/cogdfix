@@ -1,10 +1,8 @@
-"""
-Production-grade headless ComfyUI installer (with CUDA-enabled PyTorch and plugin root-level dependency installs)
-"""
 import os
 import sys
 import subprocess
 import logging
+import platform
 from pathlib import Path
 
 # Optional: GitPython fallback
@@ -18,6 +16,9 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
+# Detect OS
+def is_macos() -> bool:
+    return sys.platform == "darwin" or platform.system() == "Darwin"
 
 def run_command(cmd, cwd: Path = None, shell: bool = False, input_text: str = None):
     """
@@ -31,26 +32,22 @@ def run_command(cmd, cwd: Path = None, shell: bool = False, input_text: str = No
     subprocess.run(cmd, cwd=cwd, shell=shell, check=True, input=input_text, text=True)
 
 
-def install_torch_cuda(cuda_version: str = "cu118"):
-    # """
-    # Uninstall existing torch packages and install CUDA-enabled builds non-interactively.
-    # """
+def install_torch(cuda_version: str = "cu118"):
+    """
+    Install PyTorch, torchvision, torchaudio.
+    On macOS installs CPU-only builds; on other platforms installs CUDA-enabled builds.
+    """
     packages = ["torch", "torchvision", "torchaudio"]
 
-    # # Uninstall existing
-    # logger.info("Uninstalling existing torch packages (if any)")
-    # run_command([sys.executable, "-m", "pip", "uninstall", "-y"] + packages)
-
-    # # Clear cache
-    # logger.info("Clearing pip cache to avoid stale wheels")
-    # run_command([sys.executable, "-m", "pip", "cache", "purge"])
-
-    # Install with forced confirmation (Y) in case of custom wrappers
-    installer_cmd = [
-        sys.executable, "-m", "pip", "install"
-    ] + packages + ["--index-url", f"https://download.pytorch.org/whl/{cuda_version}"]
-    logger.info(f"Installing torch packages with CUDA {cuda_version} (auto-confirm)")
-    run_command(installer_cmd, input_text="Y\n")
+    if is_macos():
+        logger.info("macOS detected: installing CPU-only PyTorch build")
+        run_command([sys.executable, "-m", "pip", "install"] + packages)
+    else:
+        # CUDA-enabled install
+        index_url = f"https://download.pytorch.org/whl/{cuda_version}"
+        logger.info(f"Installing torch packages with CUDA {cuda_version} (auto-confirm)")
+        cmd = [sys.executable, "-m", "pip", "install"] + packages + ["--index-url", index_url]
+        run_command(cmd, input_text="Y\n")
 
 
 def clone_repo(repo_url: str, target_dir: Path) -> bool:
@@ -58,7 +55,7 @@ def clone_repo(repo_url: str, target_dir: Path) -> bool:
     Clone a Git repo to target_dir or pull if it already exists.
 
     Returns:
-        True if the repo was freshly cloned, False if it already existed and was updated.
+        True if freshly cloned, False if updated.
     """
     if target_dir.exists():
         logger.info(f"Updating existing repo at {target_dir}")
@@ -78,7 +75,7 @@ def clone_repo(repo_url: str, target_dir: Path) -> bool:
 
 def install_requirements(path: Path):
     """
-    Install Python dependencies from requirements.txt at the given path.
+    Install dependencies from requirements.txt at the given path.
     """
     req_file = path / "requirements.txt"
     if req_file.is_file():
@@ -88,7 +85,7 @@ def install_requirements(path: Path):
 
 def run_install_scripts(path: Path):
     """
-    Execute install.py or install.bat if present at the given path.
+    Execute install.py or install.bat if present.
     """
     py = path / "install.py"
     bat = path / "install.bat"
@@ -110,17 +107,16 @@ def setup_plugin_root(plugin_dir: Path):
 
 def install_comfyui(core_url: str, install_dir: Path, cuda_version: str = "cu118"):
     """
-    Clone and set up the ComfyUI core, including CUDA-enabled PyTorch.
+    Clone and set up the ComfyUI core.
     """
     clone_repo(core_url, install_dir)
-    install_torch_cuda(cuda_version)
+    install_torch(cuda_version)
     install_requirements(install_dir)
 
 
 def install_plugins(plugin_urls: list, comfy_root: Path):
     """
-    Clone and install each plugin under ComfyUI/custom_nodes at the plugin root only.
-    Skips setup if the directory already existed.
+    Clone and install each plugin under ComfyUI/custom_nodes.
     """
     custom_nodes_dir = comfy_root / "custom_nodes"
     custom_nodes_dir.mkdir(parents=True, exist_ok=True)
@@ -151,8 +147,6 @@ if __name__ == "__main__":
       "https://github.com/Acly/comfyui-inpaint-nodes",
       "https://github.com/cubiq/ComfyUI_essentials",
       "https://github.com/pamparamm/sd-perturbed-attention"
-      
-        # Add more plugin repositories here
     ]
 
     base_dir = Path(__file__).parent.resolve()

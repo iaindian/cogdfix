@@ -4,9 +4,8 @@ import time
 import logging
 import uuid
 from pathlib import Path
-from typing import Optional
 from cog import BasePredictor, Input, Path as CogPath
-from comfyrunbatch import (
+from comfyrun import (
     prepare_output_dir,
     upload_image,
     load_workflow,
@@ -18,10 +17,20 @@ from comfyrunbatch import (
     download_output,
 )
 
+# Configure root logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
+# Absolute default workflow path
+default_workflow_path = (Path(__file__).parent / "workflow_api/default-workflow-api.json").resolve()
 
 class Predictor(BasePredictor):
     def setup(self):
-        # Launch ComfyUI server
+        logger.info("Starting ComfyUI server...")
         self.proc = subprocess.Popen([
             "python", "ComfyUI/main.py",
             "--listen", "0.0.0.0", "--port", "8188",
@@ -31,63 +40,94 @@ class Predictor(BasePredictor):
         while time.time() < deadline:
             try:
                 import requests
-                if requests.get(host, timeout=5).status_code == 200:
-                    logging.info("ComfyUI server ready")
+                r = requests.get(host, timeout=5)
+                logger.debug(f"ComfyUI ping status: {r.status_code}")
+                if r.status_code == 200:
+                    logger.info("ComfyUI server is ready")
                     return
-            except Exception:
+            except Exception as e:
+                logger.debug(f"ComfyUI not ready yet: {e}")
                 time.sleep(1)
-        raise RuntimeError("ComfyUI failed to start within timeout")
+        raise RuntimeError("ComfyUI failed to start within 60 seconds")
 
     def predict(
         self,
-        image: CogPath = Input(description="Path to the input image file"),
-        workflow: Optional[CogPath] = Input(
-            default=None,
-            description="Optional path to the workflow JSON (uses default if omitted)",
-        ),
+        input: CogPath = Input(description="Path to the input image file"),
     ) -> CogPath:
-        """
-        Executes the image-to-image workflow and returns the generated image path.
-        """
-        logging.basicConfig(level=logging.INFO)
-        host = "http://127.0.0.1:8188"
+        try:
+            logger.info(f"Predict called with input={input}")
+            host = "http://127.0.0.1:8188"
 
-        # Validate and locate input image
-        in_path = Path(image)
-        if not in_path.is_file():
-            raise FileNotFoundError(f"Input file not found: {in_path}")
+            # Validate input image
+            in_path = Path(input)
+            logger.info(f"Validating input image at: {in_path}")
+            if not in_path.is_file():
+                logger.error(f"Input file not found: {in_path}")
+                raise FileNotFoundError(f"Input file not found: {in_path}")
 
-        # Determine workflow file: user-specified or default
-        if workflow:
-            wf_path = Path(workflow)
-        else:
-            wf_path = Path("workflow_api/default-workflow-api.json")
-        if not wf_path.is_file():
-            raise FileNotFoundError(f"Workflow file not found: {wf_path}")
-        logging.info(f"Using workflow: {wf_path}")
+            # Use default workflow
+            wf_path = default_workflow_path
+            logger.info(f"Using default workflow file: {wf_path}")
+            logger.debug(f"Exists? {wf_path.exists()}, CWD={Path().resolve()}")
+            if not wf_path.is_file():
+                logger.error(f"Default workflow file not found: {wf_path}")
+                raise FileNotFoundError(f"Default workflow file not found: {wf_path}")
 
-        # Prepare output directory
-        out_dir = Path("output")
-        prepare_output_dir(out_dir)
+            # Prepare output directory
+            out_dir = Path("ComfyUI/output")
+            logger.info(f"Preparing output directory: {out_dir}")
+            prepare_output_dir(out_dir)
 
-        # Upload input image with unique name to avoid caching
-        unique_name = f"{uuid.uuid4().hex}_{in_path.name}"
-        upload_image(in_path, host, unique_name)
+            # Upload input image
+            unique_name = f"{uuid.uuid4().hex}_{in_path.name}"  # unique upload key
+            logger.info(f"Uploading image as: {unique_name}")
+            upload_image(in_path, host, unique_name)
 
-        # Load workflow and inject inputs
-        wf = load_workflow(wf_path)
-        inject_input_image(wf, unique_name)
-        inject_parameters(wf)
+            # Load workflow
+            logger.info("Loading workflow JSON")
+            wf = load_workflow(wf_path)
 
-        # Detect output node
-        node = find_output_node(wf)
-        logging.info(f"Using output node: {node}")
+            # Inject input image
+            logger.info(f"Injecting image {unique_name} into workflow nodes")
+            inject_input_image(wf, unique_name)
 
-        # Queue workflow and await completion
-        pid = queue_workflow(wf, host, node)
-        images = await_completion(pid, host, interval=1.0, timeout=300.0)
+            # Inject parameters (defaults)
+            logger.info("Injecting default parameters into workflow")
+            inject_parameters(wf)
 
-        # Download and return the first result image
-        result_path = download_output(images[0], host, out_dir)
-        logging.info(f"Prediction complete: {result_path}")
-        return CogPath(str(result_path))
+            # Detect output node
+            logger.info("Detecting output node in workflow")
+            node = find_output_node(wf)
+            logger.info(f"Output node selected: {node}")
+
+            # Queue workflow
+            logger.info("Queueing workflow for execution")
+            pid = queue_workflow(wf, host, node)
+            logger.info(f"Workflow queued with prompt_id: {pid}")
+
+            # Await completion
+            logger.info("Awaiting workflow completion")
+            images = await_completion(pid, host, interval=1.0, timeout=300.0)
+            logger.info(f"Received {len(images)} image(s) from server")
+
+            # Download first output image
+            first = images[0]
+            filename = first.get('filename')
+            logger.info(f"Downloading first output image: {filename}")
+            download_output(first, host, out_dir)
+
+            # Construct and return path
+            result_path = out_dir / filename
+            logger.info(f"Downloaded output image to: {result_path}")
+            return CogPath(str(result_path))
+
+        except Exception as e:
+            logger.exception("Prediction failed with exception")
+            raise
+
+if __name__ == '__main__':
+    # Local test
+    pred = Predictor()
+    pred.setup()
+    output = pred.predict(input="test.jpg")
+    print("Output:", output)
